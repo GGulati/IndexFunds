@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/currency';
 
-interface FundDetailsProps {
+export interface FundDetailsProps {
   funds: Array<{
     name: string;
     symbol: string;

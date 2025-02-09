@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import IndexChart from '@/components/IndexChart';
 import FundSelector from '@/components/FundSelector';
-import FundDetails from '@/components/FundDetails';
-import { getStockQuote, TimeRange, StockData } from '@/services/data-fetcher';
+import { TimeRange } from '@/services/data-fetcher';
 import { Fund } from '@/components/FundSelector';
 import { getGlobalIndices } from '@/services/market-data';
 

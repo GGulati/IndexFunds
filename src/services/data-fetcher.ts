@@ -29,24 +29,6 @@ export function convertExchangeTimestamp(timestamp: number, gmtOffset: number): 
   return timestamp - gmtOffset;
 }
 
-async function calculate52WeekRange(symbol: string): Promise<{ low: number; high: number }> {
-  const response = await fetch(
-    `${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`
-  );
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch 52-week data');
-  }
-
-  const data = await response.json();
-  const quote = data.chart.result[0].meta;
-  
-  return {
-    low: quote.fiftyTwoWeekLow,
-    high: quote.fiftyTwoWeekHigh
-  };
-}
-
 const CACHE_DURATION = {
   SHORT: 5 * 60 * 1000,    // 5 minutes for intraday data
   LONG: 60 * 60 * 1000,    // 1 hour for historical data
@@ -119,10 +101,7 @@ export async function getStockQuote(symbol: string): Promise<StockData> {
     return cached;
   }
 
-  const [quoteResponse, rangeData] = await Promise.all([
-    fetch(`${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`),
-    calculate52WeekRange(symbol)
-  ]);
+  const quoteResponse = await fetch(`${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`)
   
   if (!quoteResponse.ok) {
     throw new Error('Failed to fetch stock data');

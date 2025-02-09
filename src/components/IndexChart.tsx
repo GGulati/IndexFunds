@@ -13,9 +13,10 @@ import {
   Legend
 } from 'chart.js';
 import { getChartData, ChartData, TimeRange, convertExchangeTimestamp } from '@/services/data-fetcher';
-import { getExchangeRate, getRateForDate } from '@/services/exchange-rates';
+import { getExchangeRate, getRateForDate, ExchangeRate } from '@/services/exchange-rates';
 import { formatCurrency } from '@/utils/currency';
-import FundDetails from './FundDetails';
+import FundDetails, { FundDetailsProps } from './FundDetails';
+import { Fund } from '@/components/FundSelector';
 
 ChartJS.register(
   CategoryScale,
@@ -27,19 +28,9 @@ ChartJS.register(
   Legend
 );
 
-interface ChartDataWithRates extends ChartData {
-  exchangeRates?: number[];  // Exchange rates for each timestamp
-}
-
 interface IndexChartProps {
   timeRange: TimeRange;
   selectedFunds: Fund[];
-}
-
-function calculatePercentageData(prices: number[]): number[] {
-  const basePrice = prices[0];
-  if (!basePrice) return prices;
-  return prices.map(price => (price / basePrice) * 100);
 }
 
 export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
@@ -211,7 +202,7 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
     labels: allTimestamps.map(ts => 
       new Date(ts * 1000).toLocaleDateString('en-US', dateFormat)
     ),
-    datasets,
+    datasets: datasets.filter((d): d is NonNullable<typeof d> => d !== null)
   };
 
   const options = {
@@ -236,10 +227,11 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
         intersect: false,
         callbacks: {
           label: (context: any) => {
-            if (context.parsed.y === null) return null;
+            if (context.parsed.y === null) return [];
             const fund = selectedFunds[context.datasetIndex];
             const fundData = chartData[fund.symbol];
             const dataset = datasets[context.datasetIndex];
+            if (!dataset) return [];
             const percentageValue = context.parsed.y;
             const actualValue = dataset.originalData[context.dataIndex];
 
@@ -258,8 +250,8 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
             const localValue = actualValue * rate;
 
             // Calculate percentage changes
-            const firstIndex = dataset.originalData.findIndex(v => v !== null) ?? 0
-            const firstLocalValue = dataset.originalData[firstIndex] * (rates ? getRateForDate(rates, 
+            const firstIndex = dataset?.originalData.findIndex(v => v !== null) ?? 0
+            const firstLocalValue = dataset?.originalData[firstIndex] * (rates ? getRateForDate(rates, 
               new Date(allTimestamps[firstIndex] * 1000).toISOString().split('T')[0]
             ) : 1);
             const firstRate = rates ? getRateForDate(rates, 
@@ -297,7 +289,7 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
           maxRotation: 0,
           autoSkip: true,
           maxTicksLimit: getTickLimitForRange(timeRange),
-          callback: (value: any, index: number, values: any[]) => {
+          callback: (_: any, index: number, __: any[]) => {
             const date = new Date(allTimestamps[index] * 1000);
             const format = getDateFormatForRange(timeRange);
             
@@ -310,7 +302,9 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
           color: 'rgba(0, 0, 0, 0.1)',
         },
         ticks: {
-          callback: (value: number) => `${value.toFixed(0)}%`,
+          callback: function(tickValue: number | string) {
+            return `${Number(tickValue).toFixed(0)}%`;
+          }
         },
       },
     },

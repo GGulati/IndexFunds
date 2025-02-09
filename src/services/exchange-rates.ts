@@ -58,8 +58,3 @@ export function convertToUSD(value: number, rate: number): number {
 export function convertFromUSD(value: number, rate: number): number {
   return value / rate;
 }
-
-// Clean up expired entries periodically
-setInterval(() => {
-  exchangeRateCache.cleanup();
-}, 60 * 60 * 1000); // Every hour 
