@@ -171,9 +171,3 @@ function getIntervalForRange(range: TimeRange): string {
       return '1d';
   }
 }
-
-// Clean up expired entries periodically
-setInterval(() => {
-  chartDataCache.cleanup();
-  stockQuoteCache.cleanup();
-}, 5 * 60 * 1000); // Every 5 minutes 
