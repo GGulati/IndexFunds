@@ -1,64 +1,62 @@
 import { NextResponse } from 'next/server';
 
-// Data from Seeking Alpha's country ETFs table
-const COUNTRY_ETFS = [
-  // United States Major Indices
-  { symbol: 'SPY', name: 'S&P 500 ETF', region: 'North America' },
-  { symbol: 'QQQ', name: 'Nasdaq 100 ETF', region: 'North America' },
-  { symbol: 'DIA', name: 'Dow Jones ETF', region: 'North America' },
-  { symbol: 'IWM', name: 'Russell 2000 ETF', region: 'North America' },
+// Combined data from Yahoo Finance and Trading Economics
+const WORLD_INDICES = [
+  // Americas
+  { symbol: '^GSPC', name: 'S&P 500', region: 'North America' },
+  { symbol: '^DJI', name: 'Dow Jones', region: 'North America' },
+  { symbol: '^IXIC', name: 'NASDAQ', region: 'North America' },
+  { symbol: '^RUT', name: 'Russell 2000', region: 'North America' },
+  { symbol: '^GSPTSE', name: 'S&P/TSX', region: 'North America' },
+  { symbol: '^BVSP', name: 'IBOVESPA', region: 'Latin America' },
+  { symbol: '^MXX', name: 'IPC Mexico', region: 'Latin America' },
+  { symbol: '^MERV', name: 'MERVAL', region: 'Latin America' },
+  { symbol: '^IPSA', name: 'IPSA Chile', region: 'Latin America' },
   
-  // International ETFs
-  { symbol: 'EWA', name: 'Australia ETF', region: 'Asia Pacific' },
-  { symbol: 'EWO', name: 'Austria ETF', region: 'Europe' },
-  { symbol: 'EWK', name: 'Belgium ETF', region: 'Europe' },
-  { symbol: 'EWZ', name: 'Brazil ETF', region: 'Latin America' },
-  { symbol: 'EWC', name: 'Canada ETF', region: 'North America' },
-  { symbol: 'ECH', name: 'Chile ETF', region: 'Latin America' },
-  { symbol: 'GXC', name: 'China ETF', region: 'Asia Pacific' },
-  { symbol: 'GXG', name: 'Colombia ETF', region: 'Latin America' },
-  { symbol: 'EDEN', name: 'Denmark ETF', region: 'Europe' },
-  { symbol: 'EFNL', name: 'Finland ETF', region: 'Europe' },
-  { symbol: 'EWQ', name: 'France ETF', region: 'Europe' },
-  { symbol: 'EWG', name: 'Germany ETF', region: 'Europe' },
-  { symbol: 'GREK', name: 'Greece ETF', region: 'Europe' },
-  { symbol: 'EWH', name: 'Hong Kong ETF', region: 'Asia Pacific' },
-  { symbol: 'PIN', name: 'India ETF', region: 'Asia Pacific' },
-  { symbol: 'IDX', name: 'Indonesia ETF', region: 'Asia Pacific' },
-  { symbol: 'EIRL', name: 'Ireland ETF', region: 'Europe' },
-  { symbol: 'EIS', name: 'Israel ETF', region: 'Middle East' },
-  { symbol: 'EWI', name: 'Italy ETF', region: 'Europe' },
-  { symbol: 'EWJ', name: 'Japan ETF', region: 'Asia Pacific' },
-  { symbol: 'KWT', name: 'Kuwait ETF', region: 'Middle East' },
-  { symbol: 'EWM', name: 'Malaysia ETF', region: 'Asia Pacific' },
-  { symbol: 'EWW', name: 'Mexico ETF', region: 'North America' },
-  { symbol: 'EWN', name: 'Netherlands ETF', region: 'Europe' },
-  { symbol: 'ENZL', name: 'New Zealand ETF', region: 'Asia Pacific' },
-  { symbol: 'NORW', name: 'Norway ETF', region: 'Europe' },
-  { symbol: 'EPU', name: 'Peru ETF', region: 'Latin America' },
-  { symbol: 'EPHE', name: 'Philippines ETF', region: 'Asia Pacific' },
-  { symbol: 'EPOL', name: 'Poland ETF', region: 'Europe' },
-  { symbol: 'QAT', name: 'Qatar ETF', region: 'Middle East' },
-  { symbol: 'EWS', name: 'Singapore ETF', region: 'Asia Pacific' },
-  { symbol: 'EZA', name: 'South Africa ETF', region: 'Africa' },
-  { symbol: 'EWY', name: 'South Korea ETF', region: 'Asia Pacific' },
-  { symbol: 'EWP', name: 'Spain ETF', region: 'Europe' },
-  { symbol: 'EWD', name: 'Sweden ETF', region: 'Europe' },
-  { symbol: 'EWL', name: 'Switzerland ETF', region: 'Europe' },
-  { symbol: 'EWT', name: 'Taiwan ETF', region: 'Asia Pacific' },
-  { symbol: 'THD', name: 'Thailand ETF', region: 'Asia Pacific' },
-  { symbol: 'TUR', name: 'Turkey ETF', region: 'Europe' },
-  { symbol: 'UAE', name: 'United Arab Emirates ETF', region: 'Middle East' },
-  { symbol: 'EWU', name: 'United Kingdom ETF', region: 'Europe' },
-  { symbol: 'VNM', name: 'Vietnam ETF', region: 'Asia Pacific' }
+  // Europe
+  { symbol: '^FTSE', name: 'FTSE 100', region: 'Europe' },
+  { symbol: '^GDAXI', name: 'DAX 40', region: 'Europe' },
+  { symbol: '^FCHI', name: 'CAC 40', region: 'Europe' },
+  { symbol: '^STOXX50E', name: 'Euro Stoxx 50', region: 'Europe' },
+  { symbol: '^AEX', name: 'AEX', region: 'Europe' },
+  { symbol: '^IBEX', name: 'IBEX 35', region: 'Europe' },
+  { symbol: '^SSMI', name: 'SMI', region: 'Europe' },
+  { symbol: '^PTL', name: 'WIG 20', region: 'Europe' },
+  { symbol: '^BFX', name: 'BEL 20', region: 'Europe' },
+  { symbol: 'IMOEX.ME', name: 'MOEX', region: 'Europe' },
+  { symbol: '^OMXC25', name: 'OMX Copenhagen', region: 'Europe' },
+  { symbol: '^OMXS30', name: 'OMX Stockholm', region: 'Europe' },
+  { symbol: '^OMXH25', name: 'OMX Helsinki', region: 'Europe' },
+  
+  // Asia Pacific
+  { symbol: '^N225', name: 'Nikkei 225', region: 'Asia Pacific' },
+  { symbol: '^HSI', name: 'Hang Seng', region: 'Asia Pacific' },
+  { symbol: '000001.SS', name: 'Shanghai', region: 'Asia Pacific' },
+  { symbol: '399001.SZ', name: 'Shenzhen', region: 'Asia Pacific' },
+  { symbol: '^STI', name: 'STI', region: 'Asia Pacific' },
+  { symbol: '^AXJO', name: 'ASX 200', region: 'Asia Pacific' },
+  { symbol: '^BSESN', name: 'SENSEX', region: 'Asia Pacific' },
+  { symbol: '^NSEI', name: 'NIFTY 50', region: 'Asia Pacific' },
+  { symbol: '^JKSE', name: 'Jakarta', region: 'Asia Pacific' },
+  { symbol: '^KS11', name: 'KOSPI', region: 'Asia Pacific' },
+  { symbol: '^TWII', name: 'TAIEX', region: 'Asia Pacific' },
+  { symbol: '^NZ50', name: 'NZX 50', region: 'Asia Pacific' },
+  { symbol: '^KLSE', name: 'KLCI', region: 'Asia Pacific' },
+  { symbol: '^SET.BK', name: 'SET', region: 'Asia Pacific' },
+  
+  // Middle East & Africa
+  { symbol: '^TA125.TA', name: 'TA-125', region: 'Middle East' },
+  { symbol: '^TASI.SR', name: 'TASI', region: 'Middle East' },
+  { symbol: '^CASE30', name: 'EGX 30', region: 'Africa' },
+  { symbol: '^JN0U.JO', name: 'JSE Top 40', region: 'Africa' },
 ];
 
 export async function GET() {
   try {
-    const indices = COUNTRY_ETFS.map(etf => ({
-      ...etf,
-      exchange: 'NYSE Arca',
-      color: getRandomColor(etf.symbol)
+    const indices = WORLD_INDICES.map(index => ({
+      ...index,
+      exchange: 'Index',
+      color: getRandomColor(index.symbol)
     }));
 
     return NextResponse.json(indices);
