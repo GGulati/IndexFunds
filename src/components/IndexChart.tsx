@@ -29,11 +29,17 @@ interface IndexChartProps {
   selectedFunds: Fund[];
 }
 
+function formatCurrency(value: number, currency: string): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
-  const [chartData, setChartData] = useState<Record<string, { 
-    data: ChartData; 
-    gmtOffset: number;
-  }>>({});
+  const [chartData, setChartData] = useState<Record<string, ChartData>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,12 +54,9 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
         const results = await Promise.all(promises);
         
         const newData = results.reduce((acc, data, index) => {
-          acc[selectedFunds[index].symbol] = {
-            data: data.chartData,
-            gmtOffset: data.gmtOffset
-          };
+          acc[selectedFunds[index].symbol] = data;
           return acc;
-        }, {} as Record<string, { data: ChartData; gmtOffset: number }>);
+        }, {} as Record<string, ChartData>);
         
         setChartData(newData);
       } catch (error) {
@@ -92,8 +95,8 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
   
   // Get all timestamps, normalized to UTC
   const allTimestamps = [...new Set(
-    Object.entries(chartData).flatMap(([_, { data, gmtOffset }]) => 
-      data.timestamp.map(ts => convertExchangeTimestamp(ts, gmtOffset))
+    Object.entries(chartData).flatMap(([_, data]) => 
+      data.timestamp.map(ts => convertExchangeTimestamp(ts, data.gmtOffset))
     )
   )].sort((a, b) => a - b);
 
@@ -111,11 +114,11 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
     const alignedData = new Array(allTimestamps.length).fill(null);
 
     // Fill in the actual values where we have data
-    fundData.data.timestamp.forEach((ts, i) => {
+    fundData.timestamp.forEach((ts, i) => {
       const normalizedTs = convertExchangeTimestamp(ts, fundData.gmtOffset);
       const alignedIndex = timestampToIndex.get(normalizedTs);
       if (alignedIndex !== undefined) {
-        alignedData[alignedIndex] = fundData.data.close[i];
+        alignedData[alignedIndex] = fundData.close[i];
       }
     });
 
@@ -172,7 +175,9 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
         callbacks: {
           label: (context: any) => {
             if (context.parsed.y === null) return null;
-            return `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`;
+            const symbol = selectedFunds[context.datasetIndex].symbol;
+            const fundData = chartData[symbol];
+            return `${context.dataset.label}: ${formatCurrency(context.parsed.y, fundData.currency)}`;
           },
           title: (tooltipItems: any) => {
             const date = new Date(allTimestamps[tooltipItems[0].dataIndex] * 1000);
@@ -201,7 +206,9 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
           color: 'rgba(0, 0, 0, 0.1)',
         },
         ticks: {
-          callback: (value: any) => `$${value.toLocaleString()}`,
+          callback: (value: any) => {
+            return formatCurrency(value, 'USD');
+          },
         },
       },
     },

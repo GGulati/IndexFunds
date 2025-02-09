@@ -15,6 +15,8 @@ export interface StockData {
 export interface ChartData {
   timestamp: number[];
   close: number[];
+  gmtOffset: number;
+  currency: string;
 }
 
 export type TimeRange = '1d' | '5d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
@@ -69,12 +71,7 @@ export async function getStockQuote(symbol: string): Promise<StockData> {
   };
 }
 
-interface ChartResponse {
-  chartData: ChartData;
-  gmtOffset: number;
-}
-
-export async function getChartData(symbol: string, range: TimeRange): Promise<ChartResponse> {
+export async function getChartData(symbol: string, range: TimeRange): Promise<ChartData> {
   const interval = getIntervalForRange(range);
   
   const response = await fetch(
@@ -99,12 +96,14 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
       acc.close.push(price);
     }
     return acc;
-  }, { timestamp: [], close: [] });
+  }, { 
+    timestamp: [], 
+    close: [], 
+    gmtOffset: result.meta.gmtoffset,
+    currency: result.meta.currency || 'USD'  // Default to USD if not specified
+  });
 
-  return {
-    chartData: validPoints,
-    gmtOffset: result.meta.gmtoffset
-  };
+  return validPoints;
 }
 
 function getIntervalForRange(range: TimeRange): string {
