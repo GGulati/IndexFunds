@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import IndexChart from '@/components/IndexChart';
 import FundDetails from '@/components/FundDetails';
 import { getStockQuote, TimeRange, StockData } from '@/services/data-fetcher';
+import FundSelector from '@/components/FundSelector';
 
 const TIME_RANGES: { label: string; value: TimeRange }[] = [
   { label: '1D', value: '1d' },
@@ -18,14 +19,19 @@ const TIME_RANGES: { label: string; value: TimeRange }[] = [
 
 export default function Home() {
   const [selectedRange, setSelectedRange] = useState<TimeRange>('1y');
-  const [stockData, setStockData] = useState<StockData | null>(null);
+  const [selectedFunds, setSelectedFunds] = useState<Fund[]>([
+    { symbol: '^GSPC', name: 'S&P 500', color: 'rgb(0, 150, 136)' }
+  ]);
+  const [stockData, setStockData] = useState<Record<string, StockData>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStockData() {
       try {
         const data = await getStockQuote('^GSPC');
-        setStockData(data);
+        setStockData({
+          '^GSPC': data
+        });
       } catch (error) {
         console.error('Failed to fetch stock data:', error);
       } finally {
@@ -35,6 +41,16 @@ export default function Home() {
 
     fetchStockData();
   }, []);
+
+  const handleFundToggle = (fund: Fund) => {
+    setSelectedFunds(prev => {
+      const exists = prev.some(f => f.symbol === fund.symbol);
+      if (exists) {
+        return prev.filter(f => f.symbol !== fund.symbol);
+      }
+      return [...prev, fund];
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -46,16 +62,16 @@ export default function Home() {
               {isLoading ? (
                 'Loading...'
               ) : (
-                `$${stockData?.currentPrice.toLocaleString()}`
+                `$${stockData['^GSPC']?.currentPrice.toLocaleString()}`
               )}
             </span>
-            {!isLoading && stockData && (
+            {!isLoading && stockData['^GSPC'] && (
               <>
-                <span className={`font-medium ${stockData.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {stockData.change.toFixed(2)} ({stockData.changePercent.toFixed(2)}%)
+                <span className={`font-medium ${stockData['^GSPC'].change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {stockData['^GSPC'].change.toFixed(2)} ({stockData['^GSPC'].changePercent.toFixed(2)}%)
                 </span>
                 <span className="text-gray-600">
-                  At close: {new Date(stockData.lastUpdated * 1000).toLocaleString('en-US', {
+                  At close: {new Date(stockData['^GSPC'].lastUpdated * 1000).toLocaleString('en-US', {
                     month: 'long',
                     day: 'numeric',
                     hour: 'numeric',
@@ -68,6 +84,11 @@ export default function Home() {
             )}
           </div>
         </div>
+
+        <FundSelector 
+          selectedFunds={selectedFunds}
+          onFundToggle={handleFundToggle}
+        />
 
         <div className="flex gap-4 mb-4">
           {TIME_RANGES.map(({ label, value }) => (
@@ -85,13 +106,17 @@ export default function Home() {
           ))}
         </div>
 
-        <IndexChart timeRange={selectedRange} />
-        {!isLoading && stockData && (
+        <IndexChart 
+          timeRange={selectedRange}
+          selectedFunds={selectedFunds}
+        />
+        
+        {!isLoading && stockData['^GSPC'] && (
           <FundDetails 
-            previousClose={stockData.previousClose}
-            volume={stockData.volume}
-            weekLow={stockData.fiftyTwoWeekLow}
-            weekHigh={stockData.fiftyTwoWeekHigh}
+            previousClose={stockData['^GSPC'].previousClose}
+            volume={stockData['^GSPC'].volume}
+            weekLow={stockData['^GSPC'].fiftyTwoWeekLow}
+            weekHigh={stockData['^GSPC'].fiftyTwoWeekHigh}
           />
         )}
       </main>

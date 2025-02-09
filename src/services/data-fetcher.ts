@@ -19,6 +19,11 @@ export interface ChartData {
 
 export type TimeRange = '1d' | '5d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
 
+export function convertExchangeTimestamp(timestamp: number, gmtOffset: number): number {
+  // Convert timestamp to UTC by subtracting the exchange's GMT offset
+  return timestamp - gmtOffset;
+}
+
 async function calculate52WeekRange(symbol: string): Promise<{ low: number; high: number }> {
   const response = await fetch(
     `${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`
@@ -64,7 +69,12 @@ export async function getStockQuote(symbol: string): Promise<StockData> {
   };
 }
 
-export async function getChartData(symbol: string, range: TimeRange): Promise<ChartData> {
+interface ChartResponse {
+  chartData: ChartData;
+  gmtOffset: number;
+}
+
+export async function getChartData(symbol: string, range: TimeRange): Promise<ChartResponse> {
   const interval = getIntervalForRange(range);
   
   const response = await fetch(
@@ -81,6 +91,7 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
   const timestamps = result.timestamp;
   const closes = result.indicators.quote[0].close;
   
+  // Create paired arrays removing any points with null values
   const validPoints = timestamps.reduce((acc: ChartData, timestamp: number, index: number) => {
     const price = closes[index];
     if (price !== null && !isNaN(price)) {
@@ -90,7 +101,10 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
     return acc;
   }, { timestamp: [], close: [] });
 
-  return validPoints;
+  return {
+    chartData: validPoints,
+    gmtOffset: result.meta.gmtoffset
+  };
 }
 
 function getIntervalForRange(range: TimeRange): string {

@@ -12,7 +12,7 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-import { getChartData, ChartData, TimeRange } from '@/services/data-fetcher';
+import { getChartData, ChartData, TimeRange, convertExchangeTimestamp } from '@/services/data-fetcher';
 
 ChartJS.register(
   CategoryScale,
@@ -26,10 +26,14 @@ ChartJS.register(
 
 interface IndexChartProps {
   timeRange: TimeRange;
+  selectedFunds: Fund[];
 }
 
-export default function IndexChart({ timeRange }: IndexChartProps) {
-  const [chartData, setChartData] = useState<ChartData | null>(null);
+export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
+  const [chartData, setChartData] = useState<Record<string, { 
+    data: ChartData; 
+    gmtOffset: number;
+  }>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,8 +42,20 @@ export default function IndexChart({ timeRange }: IndexChartProps) {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await getChartData('^GSPC', timeRange);
-        setChartData(data);
+        const promises = selectedFunds.map(fund => 
+          getChartData(fund.symbol, timeRange)
+        );
+        const results = await Promise.all(promises);
+        
+        const newData = results.reduce((acc, data, index) => {
+          acc[selectedFunds[index].symbol] = {
+            data: data.chartData,
+            gmtOffset: data.gmtOffset
+          };
+          return acc;
+        }, {} as Record<string, { data: ChartData; gmtOffset: number }>);
+        
+        setChartData(newData);
       } catch (error) {
         console.error('Failed to fetch chart data:', error);
         setError('Failed to load chart data. Please try again later.');
@@ -48,8 +64,10 @@ export default function IndexChart({ timeRange }: IndexChartProps) {
       }
     }
 
-    fetchData();
-  }, [timeRange]);
+    if (selectedFunds.length > 0) {
+      fetchData();
+    }
+  }, [timeRange, selectedFunds]);
 
   if (error) {
     return (
@@ -59,7 +77,7 @@ export default function IndexChart({ timeRange }: IndexChartProps) {
     );
   }
 
-  if (isLoading || !chartData) {
+  if (isLoading || !Object.keys(chartData).length) {
     return (
       <div className="w-full h-[400px] bg-white rounded-lg p-4 shadow-sm flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
@@ -72,22 +90,63 @@ export default function IndexChart({ timeRange }: IndexChartProps) {
 
   const dateFormat = getDateFormatForRange(timeRange);
   
+  // Get all timestamps, normalized to UTC
+  const allTimestamps = [...new Set(
+    Object.entries(chartData).flatMap(([_, { data, gmtOffset }]) => 
+      data.timestamp.map(ts => convertExchangeTimestamp(ts, gmtOffset))
+    )
+  )].sort((a, b) => a - b);
+
+  // Create a map of normalized timestamp to index
+  const timestampToIndex = new Map(
+    allTimestamps.map((ts, index) => [ts, index])
+  );
+
+  // Prepare datasets with aligned data points
+  const datasets = selectedFunds.map(fund => {
+    const fundData = chartData[fund.symbol];
+    if (!fundData) return null;
+
+    // Create an array filled with null values for all timestamps
+    const alignedData = new Array(allTimestamps.length).fill(null);
+
+    // Fill in the actual values where we have data
+    fundData.data.timestamp.forEach((ts, i) => {
+      const normalizedTs = convertExchangeTimestamp(ts, fundData.gmtOffset);
+      const alignedIndex = timestampToIndex.get(normalizedTs);
+      if (alignedIndex !== undefined) {
+        alignedData[alignedIndex] = fundData.data.close[i];
+      }
+    });
+
+    // Interpolate missing values
+    let lastValue = null;
+    for (let i = 0; i < alignedData.length; i++) {
+      if (alignedData[i] === null) {
+        alignedData[i] = lastValue;
+      } else {
+        lastValue = alignedData[i];
+      }
+    }
+
+    return {
+      label: fund.name,
+      data: alignedData,
+      borderColor: fund.color,
+      backgroundColor: `${fund.color}10`,
+      fill: false,
+      tension: 0.4,
+      pointRadius: timeRange === '1d' || timeRange === '5d' ? 1 : 0,
+      borderWidth: 2,
+      spanGaps: true,
+    };
+  }).filter(Boolean);
+
   const data = {
-    labels: chartData.timestamp.map(ts => 
+    labels: allTimestamps.map(ts => 
       new Date(ts * 1000).toLocaleDateString('en-US', dateFormat)
     ),
-    datasets: [
-      {
-        label: 'S&P 500',
-        data: chartData.close,
-        borderColor: 'rgb(0, 150, 136)',
-        backgroundColor: 'rgba(0, 150, 136, 0.1)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: timeRange === '1d' || timeRange === '5d' ? 1 : 0,
-        borderWidth: 2,
-      },
-    ],
+    datasets,
   };
 
   const options = {
@@ -98,15 +157,25 @@ export default function IndexChart({ timeRange }: IndexChartProps) {
     },
     plugins: {
       legend: {
-        display: false,
+        display: true,
+        position: 'top' as const,
+        align: 'start' as const,
+        labels: {
+          usePointStyle: true,
+          boxWidth: 6,
+          padding: 20,
+        },
       },
       tooltip: {
         mode: 'index' as const,
         intersect: false,
         callbacks: {
-          label: (context: any) => `$${context.parsed.y.toLocaleString()}`,
+          label: (context: any) => {
+            if (context.parsed.y === null) return null;
+            return `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`;
+          },
           title: (tooltipItems: any) => {
-            const date = new Date(chartData.timestamp[tooltipItems[0].dataIndex] * 1000);
+            const date = new Date(allTimestamps[tooltipItems[0].dataIndex] * 1000);
             return date.toLocaleString('en-US', {
               ...dateFormat,
               hour: timeRange === '1d' || timeRange === '5d' ? 'numeric' : undefined,
