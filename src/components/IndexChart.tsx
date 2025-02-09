@@ -36,6 +36,12 @@ interface IndexChartProps {
   selectedFunds: Fund[];
 }
 
+function calculatePercentageData(prices: number[]): number[] {
+  const basePrice = prices[0];
+  if (!basePrice) return prices;
+  return prices.map(price => (price / basePrice) * 100);
+}
+
 export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
   const [chartData, setChartData] = useState<Record<string, ChartData>>({});
   const [exchangeRates, setExchangeRates] = useState<Map<string, ExchangeRate[]>>(new Map());
@@ -181,9 +187,16 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
       }
     }
 
+    // Calculate percentage change from first non-null value
+    const firstValue = alignedData.find(v => v !== null) ?? 1;
+    const percentageData = alignedData.map(value => 
+      value !== null ? (value / firstValue) * 100 : null
+    );
+
     return {
       label: fund.name,
-      data: alignedData,
+      data: percentageData,
+      originalData: alignedData, // Keep original data for tooltip
       borderColor: fund.color,
       backgroundColor: `${fund.color}10`,
       fill: false,
@@ -226,23 +239,28 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
             if (context.parsed.y === null) return null;
             const fund = selectedFunds[context.datasetIndex];
             const fundData = chartData[fund.symbol];
-            const value = context.parsed.y;
+            const dataset = datasets[context.datasetIndex];
+            const percentageValue = context.parsed.y;
+            const actualValue = dataset.originalData[context.dataIndex];
 
             if (fundData.currency === 'USD') {
-              return `${fund.name}: ${formatCurrency(value, 'USD')}`;
+              return [
+                `${fund.name}: ${percentageValue.toFixed(2)}%`,
+                `Price: ${formatCurrency(actualValue, 'USD')}`
+              ];
             }
 
-            // Get the original price by looking up the exchange rate
             const date = new Date(allTimestamps[context.dataIndex] * 1000)
               .toISOString()
               .split('T')[0];
             const rates = exchangeRates.get(fundData.currency);
             const rate = rates ? getRateForDate(rates, date) : 1;
-            const localValue = value * rate;
+            const localValue = actualValue * rate;
             
             return [
-              `${fund.name} (USD): ${formatCurrency(value, 'USD')}`,
-              `${fund.name} (${fundData.currency}): ${formatCurrency(localValue, fundData.currency)}`,
+              `${fund.name}: ${percentageValue.toFixed(2)}%`,
+              `Price (USD): ${formatCurrency(actualValue, 'USD')}`,
+              `Price (${fundData.currency}): ${formatCurrency(localValue, fundData.currency)}`,
               `Exchange Rate: 1 USD = ${rate.toFixed(4)} ${fundData.currency}`
             ];
           },
@@ -273,9 +291,7 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
           color: 'rgba(0, 0, 0, 0.1)',
         },
         ticks: {
-          callback: (value: any) => {
-            return formatCurrency(value, 'USD');
-          },
+          callback: (value: number) => `${value.toFixed(0)}%`,
         },
       },
     },

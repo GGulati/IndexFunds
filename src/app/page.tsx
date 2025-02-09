@@ -22,8 +22,6 @@ const TIME_RANGES: { label: string; value: TimeRange }[] = [
 export default function Home() {
   const [selectedRange, setSelectedRange] = useState<TimeRange>('1y');
   const [selectedFunds, setSelectedFunds] = useState<Fund[]>([]);
-  const [stockData, setStockData] = useState<Record<string, StockData>>({});
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function initializeData() {
@@ -39,17 +37,9 @@ export default function Home() {
           };
           
           setSelectedFunds([initialFund]);
-          
-          // Fetch stock data for S&P 500
-          const data = await getStockQuote(spIndex.symbol);
-          setStockData({
-            [spIndex.symbol]: data
-          });
         }
       } catch (error) {
         console.error('Failed to initialize data:', error);
-      } finally {
-        setIsLoading(false);
       }
     }
     
@@ -94,15 +84,6 @@ export default function Home() {
           timeRange={selectedRange}
           selectedFunds={selectedFunds}
         />
-        
-        {!isLoading && stockData['^GSPC'] && (
-          <FundDetails 
-            previousClose={stockData['^GSPC'].previousClose}
-            volume={stockData['^GSPC'].volume}
-            weekLow={stockData['^GSPC'].fiftyTwoWeekLow}
-            weekHigh={stockData['^GSPC'].fiftyTwoWeekHigh}
-          />
-        )}
       </main>
     </div>
   );
