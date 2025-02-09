@@ -2,6 +2,8 @@
 
 A web application for tracking and comparing global market indices with support for multiple currencies and real-time data visualization.
 
+Deployed version (via Vercel): https://index-funds.vercel.app/
+
 ![Screenshot](readme.png "Screenshot")
 
 ## Background
