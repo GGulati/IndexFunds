@@ -1,3 +1,5 @@
+import { Cache } from './cache';
+
 const BASE_URL = '/api/history';
 
 export interface StockData {
@@ -45,36 +47,32 @@ async function calculate52WeekRange(symbol: string): Promise<{ low: number; high
   };
 }
 
-export async function getStockQuote(symbol: string): Promise<StockData> {
-  const [quoteResponse, rangeData] = await Promise.all([
-    fetch(`${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`),
-    calculate52WeekRange(symbol)
-  ]);
-  
-  if (!quoteResponse.ok) {
-    throw new Error('Failed to fetch stock data');
-  }
+const CACHE_DURATION = {
+  SHORT: 5 * 60 * 1000,    // 5 minutes for intraday data
+  LONG: 60 * 60 * 1000,    // 1 hour for historical data
+};
 
-  const data = await quoteResponse.json();
-  const result = data.chart.result[0];
-  const quote = result.meta;
-  
-  return {
-    symbol: quote.symbol || symbol,
-    currentPrice: quote.regularMarketPrice,
-    change: quote.regularMarketPrice - quote.chartPreviousClose,
-    changePercent: ((quote.regularMarketPrice - quote.chartPreviousClose) / quote.chartPreviousClose) * 100,
-    lastUpdated: quote.regularMarketTime,
-    previousClose: quote.chartPreviousClose,
-    volume: quote.regularMarketVolume,
-    fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
-    fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh
-  };
+function getCacheDuration(range: TimeRange): number {
+  return ['1d', '5d'].includes(range) ? CACHE_DURATION.SHORT : CACHE_DURATION.LONG;
+}
+
+// Initialize caches with default durations
+const chartDataCache = new Cache<string, ChartData>(CACHE_DURATION.LONG);
+const stockQuoteCache = new Cache<string, StockData>(CACHE_DURATION.SHORT);
+
+function getCacheKey(symbol: string, range?: TimeRange): string {
+  return range ? `${symbol}:${range}` : symbol;
 }
 
 export async function getChartData(symbol: string, range: TimeRange): Promise<ChartData> {
+  const cacheKey = getCacheKey(symbol, range);
+  const cached = chartDataCache.get(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
   const interval = getIntervalForRange(range);
-  
   const response = await fetch(
     `${BASE_URL}?symbol=${symbol}&range=${range}&interval=${interval}`
   );
@@ -97,7 +95,7 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
     if (price !== null && !isNaN(price)) {
       acc.timestamp.push(timestamp);
       acc.close.push(price);
-      acc.volume.push(volumes[index] ?? 0);  // Use 0 if volume is null
+      acc.volume.push(volumes[index] ?? 0);
     }
     return acc;
   }, { 
@@ -105,10 +103,50 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
     close: [], 
     volume: [],
     gmtOffset: result.meta.gmtoffset,
-    currency: result.meta.currency || 'USD'  // Default to USD if not specified
+    currency: result.meta.currency || 'USD'
   });
 
+  // Cache the result
+  chartDataCache.set(cacheKey, validPoints, getCacheDuration(range));
   return validPoints;
+}
+
+export async function getStockQuote(symbol: string): Promise<StockData> {
+  const cacheKey = getCacheKey(symbol);
+  const cached = stockQuoteCache.get(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  const [quoteResponse, rangeData] = await Promise.all([
+    fetch(`${BASE_URL}?symbol=${symbol}&range=1d&interval=1d`),
+    calculate52WeekRange(symbol)
+  ]);
+  
+  if (!quoteResponse.ok) {
+    throw new Error('Failed to fetch stock data');
+  }
+
+  const data = await quoteResponse.json();
+  const result = data.chart.result[0];
+  const quote = result.meta;
+  
+  const stockData: StockData = {
+    symbol: quote.symbol || symbol,
+    currentPrice: quote.regularMarketPrice,
+    change: quote.regularMarketPrice - quote.chartPreviousClose,
+    changePercent: ((quote.regularMarketPrice - quote.chartPreviousClose) / quote.chartPreviousClose) * 100,
+    lastUpdated: quote.regularMarketTime,
+    previousClose: quote.chartPreviousClose,
+    volume: quote.regularMarketVolume,
+    fiftyTwoWeekLow: quote.fiftyTwoWeekLow,
+    fiftyTwoWeekHigh: quote.fiftyTwoWeekHigh
+  };
+
+  // Cache the result
+  stockQuoteCache.set(cacheKey, stockData);
+  return stockData;
 }
 
 function getIntervalForRange(range: TimeRange): string {
@@ -132,4 +170,10 @@ function getIntervalForRange(range: TimeRange): string {
     default:
       return '1d';
   }
-} 
+}
+
+// Clean up expired entries periodically
+setInterval(() => {
+  chartDataCache.cleanup();
+  stockQuoteCache.cleanup();
+}, 5 * 60 * 1000); // Every 5 minutes 

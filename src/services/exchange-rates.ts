@@ -1,3 +1,5 @@
+import { Cache } from './cache';
+
 const API_BASE_URL = '/api/exchange-rates';
 
 export interface ExchangeRate {
@@ -5,14 +7,17 @@ export interface ExchangeRate {
   rate: number;
 }
 
-// Cache exchange rates in memory
-const rateCache = new Map<string, ExchangeRate[]>();
+const CACHE_DURATION = {
+  RATES: 24 * 60 * 60 * 1000,  // 24 hours for exchange rates
+};
+
+// Initialize cache
+const exchangeRateCache = new Cache<string, ExchangeRate[]>(CACHE_DURATION.RATES);
 
 export async function getExchangeRate(currency: string): Promise<ExchangeRate[]> {
-  // Check cache first
-  const cacheKey = currency;
-  if (rateCache.has(cacheKey)) {
-    return rateCache.get(cacheKey)!;
+  const cached = exchangeRateCache.get(currency);
+  if (cached) {
+    return cached;
   }
 
   // Fetch from API
@@ -28,7 +33,7 @@ export async function getExchangeRate(currency: string): Promise<ExchangeRate[]>
   })).filter((rate: ExchangeRate) => !isNaN(rate.rate));
   
   // Cache the result
-  rateCache.set(cacheKey, rates);
+  exchangeRateCache.set(currency, rates);
   
   return rates;
 }
@@ -52,4 +57,9 @@ export function convertToUSD(value: number, rate: number): number {
 
 export function convertFromUSD(value: number, rate: number): number {
   return value / rate;
-} 
+}
+
+// Clean up expired entries periodically
+setInterval(() => {
+  exchangeRateCache.cleanup();
+}, 60 * 60 * 1000); // Every hour 
