@@ -1,56 +1,54 @@
 import { NextResponse } from 'next/server';
-import { currencies } from 'country-data';
+import { getCountryFromCurrency } from '@/utils/currency';
 
 const FRED_API_KEY = process.env.FRED_API_KEY;
-const FRED_BASE_URL = 'https://api.stlouisfed.org/fred/series/observations';
+const FRED_BASE_URL = 'https://api.stlouisfed.org/fred';
 
-// Special cases where the FRED series ID doesn't follow the standard pattern
-const SPECIAL_SERIES_IDS: Record<string, string> = {
-  'GBP': 'DEXUSUK',  // UK instead of GB
-  'CHF': 'DEXSZUS',  // SZ for Switzerland
-  'NZD': 'DEXUSNZ',  // Special case for New Zealand
-  'ZAR': 'DEXSFUS',  // SF for South Africa
-};
+async function findSeriesId(currency: string): Promise<string> {
+  const countrySearch = getCountryFromCurrency(currency)?.name ?? currency;
 
-function getSeriesId(currency: string): string {
-  // Check special cases first
-  if (currency in SPECIAL_SERIES_IDS) {
-    return SPECIAL_SERIES_IDS[currency];
+  const searchUrl = new URL(`${FRED_BASE_URL}/series/search`);
+  searchUrl.searchParams.append('api_key', FRED_API_KEY!);
+  searchUrl.searchParams.append('file_type', 'json');
+  searchUrl.searchParams.append('search_text', `Currency Conversions USD for ${countrySearch}`);
+
+  console.log(searchUrl.toString());
+  const response = await fetch(searchUrl.toString());
+  if (!response.ok) {
+    throw new Error('Failed to search FRED series');
   }
 
-  const currencyData = currencies[currency];
-  if (!currencyData) {
-    throw new Error(`Currency ${currency} not found`);
+  const data = await response.json();
+  const series = data.seriess?.[0];
+  
+  if (!series?.id) {
+    throw new Error(`No exchange rate series found for ${currency}`);
   }
 
-  // Standard pattern: DEX{CURRENCY}US for foreign/USD
-  return `DEX${currency}US`;
+  return series.id;
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const currency = searchParams.get('currency');
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
 
   if (!FRED_API_KEY) {
     return NextResponse.json({ error: 'FRED API key not configured' }, { status: 500 });
   }
 
-  if (!currency || !startDate || !endDate) {
-    return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
+  if (!currency) {
+    return NextResponse.json({ error: 'Missing currency parameter' }, { status: 400 });
   }
 
   try {
-    const seriesId = getSeriesId(currency);
+    const seriesId = await findSeriesId(currency);
     
-    const url = new URL(FRED_BASE_URL);
+    const url = new URL(`${FRED_BASE_URL}/series/observations`);
     url.searchParams.append('series_id', seriesId);
     url.searchParams.append('api_key', FRED_API_KEY);
-    url.searchParams.append('observation_start', startDate);
-    url.searchParams.append('observation_end', endDate);
     url.searchParams.append('file_type', 'json');
 
+    console.log(url.toString());
     const response = await fetch(url.toString());
     if (!response.ok) {
       throw new Error('Failed to fetch from FRED');

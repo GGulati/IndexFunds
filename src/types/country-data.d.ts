@@ -13,6 +13,7 @@ declare module 'country-data' {
       name: string;
       symbol: string;
       decimals: number;
+      alpha2?: string;
     };
   };
 } 

@@ -4,10 +4,10 @@ import { countries, currencies } from 'country-data';
 const CURRENCY_TO_COUNTRY = new Map(
   Object.values(countries.all)
     .filter(country => country.currencies?.length > 0)
-    .map(country => [country.currencies[0], country.alpha2])
+    .map(country => [country.currencies[0], country])
 );
 
-export function getCountryFromCurrency(currency: string): string | undefined {
+export function getCountryFromCurrency(currency: string) {
   return CURRENCY_TO_COUNTRY.get(currency);
 }
 

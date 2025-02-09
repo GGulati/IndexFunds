@@ -13,6 +13,8 @@ import {
   Legend
 } from 'chart.js';
 import { getChartData, ChartData, TimeRange, convertExchangeTimestamp } from '@/services/data-fetcher';
+import { getExchangeRate, getRateForDate } from '@/services/exchange-rates';
+import { formatCurrency } from '@/utils/currency';
 
 ChartJS.register(
   CategoryScale,
@@ -24,22 +26,18 @@ ChartJS.register(
   Legend
 );
 
+interface ChartDataWithRates extends ChartData {
+  exchangeRates?: number[];  // Exchange rates for each timestamp
+}
+
 interface IndexChartProps {
   timeRange: TimeRange;
   selectedFunds: Fund[];
 }
 
-function formatCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-}
-
 export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
   const [chartData, setChartData] = useState<Record<string, ChartData>>({});
+  const [exchangeRates, setExchangeRates] = useState<Map<string, ExchangeRate[]>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,19 +46,50 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
       setIsLoading(true);
       setError(null);
       try {
-        const promises = selectedFunds.map(fund => 
+        const pricePromises = selectedFunds.map(fund => 
           getChartData(fund.symbol, timeRange)
         );
-        const results = await Promise.all(promises);
-        
-        const newData = results.reduce((acc, data, index) => {
-          acc[selectedFunds[index].symbol] = data;
+        const priceResults = await Promise.all(pricePromises);
+
+        // Fetch exchange rates for non-USD currencies
+        const nonUSDResults = priceResults.filter(result => result.currency !== 'USD');
+        const ratePromises = nonUSDResults.map(result => getExchangeRate(result.currency));
+        const rateResults = await Promise.all(ratePromises);
+
+        // Create a map of currency to rates for easier lookup
+        const currencyRates = new Map(
+          nonUSDResults.map((result, index) => [result.currency, rateResults[index]])
+        );
+
+        // Combine price and rate data
+        const newData = priceResults.reduce((acc, data, index) => {
+          if (data.currency === 'USD') {
+            acc[selectedFunds[index].symbol] = data;
+          } else {
+            const rates = currencyRates.get(data.currency);
+            if (!rates) {
+              console.error(`No rates found for ${data.currency}`);
+              return acc;
+            }
+            
+            acc[selectedFunds[index].symbol] = {
+              ...data,
+              close: data.close.map((price, i) => {
+                const date = new Date(data.timestamp[i] * 1000)
+                  .toISOString()
+                  .split('T')[0];
+                return price / getRateForDate(rates, date);
+              })
+            };
+          }
           return acc;
         }, {} as Record<string, ChartData>);
-        
+
+        // Store exchange rates in state
+        setExchangeRates(currencyRates);
         setChartData(newData);
       } catch (error) {
-        console.error('Failed to fetch chart data:', error);
+        console.error('Failed to fetch data:', error);
         setError('Failed to load chart data. Please try again later.');
       } finally {
         setIsLoading(false);
@@ -175,9 +204,27 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
         callbacks: {
           label: (context: any) => {
             if (context.parsed.y === null) return null;
-            const symbol = selectedFunds[context.datasetIndex].symbol;
-            const fundData = chartData[symbol];
-            return `${context.dataset.label}: ${formatCurrency(context.parsed.y, fundData.currency)}`;
+            const fund = selectedFunds[context.datasetIndex];
+            const fundData = chartData[fund.symbol];
+            const value = context.parsed.y;
+
+            if (fundData.currency === 'USD') {
+              return `${fund.name}: ${formatCurrency(value, 'USD')}`;
+            }
+
+            // Get the original price by looking up the exchange rate
+            const date = new Date(allTimestamps[context.dataIndex] * 1000)
+              .toISOString()
+              .split('T')[0];
+            const rates = exchangeRates.get(fundData.currency);
+            const rate = rates ? getRateForDate(rates, date) : 1;
+            const localValue = value * rate;
+            
+            return [
+              `${fund.name} (USD): ${formatCurrency(value, 'USD')}`,
+              `${fund.name} (${fundData.currency}): ${formatCurrency(localValue, fundData.currency)}`,
+              `Exchange Rate: 1 USD = ${rate.toFixed(4)} ${fundData.currency}`
+            ];
           },
           title: (tooltipItems: any) => {
             const date = new Date(allTimestamps[tooltipItems[0].dataIndex] * 1000);
