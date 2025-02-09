@@ -15,6 +15,7 @@ export interface StockData {
 export interface ChartData {
   timestamp: number[];
   close: number[];
+  volume: number[];
   gmtOffset: number;
   currency: string;
 }
@@ -86,19 +87,23 @@ export async function getChartData(symbol: string, range: TimeRange): Promise<Ch
   const result = data.chart.result[0];
   
   const timestamps = result.timestamp;
-  const closes = result.indicators.quote[0].close;
-  
+  const quotes = result.indicators.quote[0];
+  const closes = quotes.close;
+  const volumes = quotes.volume;
+
   // Create paired arrays removing any points with null values
   const validPoints = timestamps.reduce((acc: ChartData, timestamp: number, index: number) => {
     const price = closes[index];
     if (price !== null && !isNaN(price)) {
       acc.timestamp.push(timestamp);
       acc.close.push(price);
+      acc.volume.push(volumes[index] ?? 0);  // Use 0 if volume is null
     }
     return acc;
   }, { 
     timestamp: [], 
     close: [], 
+    volume: [],
     gmtOffset: result.meta.gmtoffset,
     currency: result.meta.currency || 'USD'  // Default to USD if not specified
   });

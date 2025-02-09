@@ -15,6 +15,7 @@ import {
 import { getChartData, ChartData, TimeRange, convertExchangeTimestamp } from '@/services/data-fetcher';
 import { getExchangeRate, getRateForDate } from '@/services/exchange-rates';
 import { formatCurrency } from '@/utils/currency';
+import FundDetails from './FundDetails';
 
 ChartJS.register(
   CategoryScale,
@@ -38,6 +39,7 @@ interface IndexChartProps {
 export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps) {
   const [chartData, setChartData] = useState<Record<string, ChartData>>({});
   const [exchangeRates, setExchangeRates] = useState<Map<string, ExchangeRate[]>>(new Map());
+  const [fundDetails, setFundDetails] = useState<FundDetailsProps['funds']>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +87,25 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
           return acc;
         }, {} as Record<string, ChartData>);
 
-        // Store exchange rates in state
+        // Update fund details with latest rates
+        const details = priceResults.map((data, index) => {
+          const fund = selectedFunds[index];
+          const rates = data.currency !== 'USD' ? currencyRates.get(data.currency) : null;
+          const latestRate = rates ? getRateForDate(rates, new Date().toISOString().split('T')[0]) : undefined;
+
+          return {
+            name: fund.name,
+            symbol: fund.symbol,
+            previousClose: data.close[data.close.length - 1],
+            volume: data.volume?.[data.volume.length - 1] ?? 0,
+            weekLow: Math.min(...data.close),
+            weekHigh: Math.max(...data.close),
+            currency: data.currency,
+            usdRate: latestRate
+          };
+        });
+
+        setFundDetails(details);
         setExchangeRates(currencyRates);
         setChartData(newData);
       } catch (error) {
@@ -266,8 +286,11 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
   };
 
   return (
-    <div className="w-full h-[400px] bg-white rounded-lg p-4 shadow-sm">
-      <Line data={data} options={options} />
+    <div className="space-y-4">
+      <div className="w-full h-[400px] bg-white rounded-lg p-4 shadow-sm">
+        <Line data={data} options={options} />
+      </div>
+      <FundDetails funds={fundDetails} />
     </div>
   );
 }
