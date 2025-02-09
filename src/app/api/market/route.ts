@@ -21,7 +21,7 @@ const WORLD_INDICES = [
   { symbol: '^AEX', name: 'AEX', region: 'Europe' },
   { symbol: '^IBEX', name: 'IBEX 35', region: 'Europe' },
   { symbol: '^SSMI', name: 'SMI', region: 'Europe' },
-  { symbol: '^PTL', name: 'WIG 20', region: 'Europe' },
+  { symbol: '^PTL', name: 'PTL', region: 'Europe' },
   { symbol: '^BFX', name: 'BEL 20', region: 'Europe' },
   { symbol: 'IMOEX.ME', name: 'MOEX', region: 'Europe' },
   { symbol: '^OMXC25', name: 'OMX Copenhagen', region: 'Europe' },

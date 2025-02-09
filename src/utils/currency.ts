@@ -1,14 +1,27 @@
 import { countries, currencies } from 'country-data';
 
 // Create lookup maps for faster access
-const CURRENCY_TO_COUNTRY = new Map(
-  Object.values(countries.all)
-    .filter(country => country.currencies?.length > 0)
-    .map(country => [country.currencies[0], country])
-);
+const CURRENCY_TO_COUNTRIES = new Map<string, Array<{
+  name: string;
+  alpha2: string;
+}>>(); 
 
-export function getCountryFromCurrency(currency: string) {
-  return CURRENCY_TO_COUNTRY.get(currency);
+// Build currency to countries map
+Object.values(countries.all).forEach(country => {
+  if (country.currencies?.length > 0) {
+    const currency = country.currencies[0];
+    const countryData = { name: country.name, alpha2: country.alpha2 };
+    
+    if (CURRENCY_TO_COUNTRIES.has(currency)) {
+      CURRENCY_TO_COUNTRIES.get(currency)!.push(countryData);
+    } else {
+      CURRENCY_TO_COUNTRIES.set(currency, [countryData]);
+    }
+  }
+});
+
+export function getCountriesFromCurrency(currency: string) {
+  return CURRENCY_TO_COUNTRIES.get(currency);
 }
 
 export function getCurrencyData(currency: string) {
@@ -39,11 +52,11 @@ export function getFlagEmoji(countryCode: string): string {
 
 // Format currency with flag
 export function formatCurrencyWithFlag(currency: string): string {
-  const country = getCountryFromCurrency(currency);
+  const country = getCountriesFromCurrency(currency);
   if (!country) return currency;
   
   const currencyData = currencies[currency];
   const symbol = currencyData?.symbol || currency;
   
-  return `${getFlagEmoji(country)} ${symbol}`;
+  return `${getFlagEmoji(country[0].alpha2)} ${symbol}`;
 } 

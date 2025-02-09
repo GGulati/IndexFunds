@@ -296,7 +296,13 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
         ticks: {
           maxRotation: 0,
           autoSkip: true,
-          maxTicksLimit: 8,
+          maxTicksLimit: getTickLimitForRange(timeRange),
+          callback: (value: any, index: number, values: any[]) => {
+            const date = new Date(allTimestamps[index] * 1000);
+            const format = getDateFormatForRange(timeRange);
+            
+            return date.toLocaleDateString('en-US', format);
+          }
         }
       },
       y: {
@@ -331,15 +337,43 @@ function getDateFormatForRange(range: TimeRange): Intl.DateTimeFormatOptions {
     case '5d':
       return { weekday: 'short', hour: 'numeric' };
     case '1mo':
-    case '6mo':
       return { month: 'short', day: 'numeric' };
+    case '6mo':
     case 'ytd':
+      return { month: 'short' };
     case '1y':
-      return { month: 'short', year: 'numeric' };
+      return { month: 'short', year: '2-digit' };
     case '5y':
+    case '10y':
+      return { month: 'short', year: '2-digit' };
+    case '20y':
     case 'max':
       return { year: 'numeric' };
     default:
       return { month: 'short', day: 'numeric' };
+  }
+}
+
+function getTickLimitForRange(range: TimeRange): number {
+  switch (range) {
+    case '1d':
+      return 6;  // Every 2 hours
+    case '5d':
+      return 5;  // One per day
+    case '1mo':
+      return 8;  // Weekly
+    case '6mo':
+    case 'ytd':
+      return 6;  // Monthly
+    case '1y':
+      return 6;  // Bi-monthly
+    case '5y':
+    case '10y':
+      return 5;  // Yearly
+    case '20y':
+    case 'max':
+      return 8;  // Every few years
+    default:
+      return 8;
   }
 } 

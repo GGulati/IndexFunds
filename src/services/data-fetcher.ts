@@ -20,7 +20,7 @@ export interface ChartData {
   currency: string;
 }
 
-export type TimeRange = '1d' | '5d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | 'max';
+export type TimeRange = '1d' | '5d' | '1mo' | '6mo' | 'ytd' | '1y' | '5y' | '10y' | '20y' | 'max';
 
 export function convertExchangeTimestamp(timestamp: number, gmtOffset: number): number {
   // Convert timestamp to UTC by subtracting the exchange's GMT offset

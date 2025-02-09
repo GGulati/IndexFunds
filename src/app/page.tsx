@@ -16,6 +16,8 @@ const TIME_RANGES: { label: string; value: TimeRange }[] = [
   { label: 'YTD', value: 'ytd' },
   { label: '1Y', value: '1y' },
   { label: '5Y', value: '5y' },
+  { label: '10Y', value: '10y' },
+  { label: '20Y', value: '20y' },
   { label: 'All', value: 'max' },
 ];
 
