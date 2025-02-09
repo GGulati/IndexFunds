@@ -256,12 +256,25 @@ export default function IndexChart({ timeRange, selectedFunds }: IndexChartProps
             const rates = exchangeRates.get(fundData.currency);
             const rate = rates ? getRateForDate(rates, date) : 1;
             const localValue = actualValue * rate;
+
+            // Calculate percentage changes
+            const firstIndex = dataset.originalData.findIndex(v => v !== null) ?? 0
+            const firstLocalValue = dataset.originalData[firstIndex] * (rates ? getRateForDate(rates, 
+              new Date(allTimestamps[firstIndex] * 1000).toISOString().split('T')[0]
+            ) : 1);
+            const firstRate = rates ? getRateForDate(rates, 
+              new Date(allTimestamps[firstIndex] * 1000).toISOString().split('T')[0]
+            ) : 1;
+            const localPercentChange = ((localValue - firstLocalValue) / firstLocalValue) * 100;
+            const ratePercentChange = ((1/rate - 1/firstRate) / (1/firstRate)) * 100;
             
             return [
               `${fund.name}: ${percentageValue.toFixed(2)}%`,
-              `Price (USD): ${formatCurrency(actualValue, 'USD')}`,
               `Price (${fundData.currency}): ${formatCurrency(localValue, fundData.currency)}`,
-              `Exchange Rate: 1 USD = ${rate.toFixed(4)} ${fundData.currency}`
+              `Price (USD): ${formatCurrency(actualValue, 'USD')}`,
+              `Exchange Rate: 1 USD = ${rate.toFixed(4)} ${fundData.currency}`,
+              `Price Change (${fundData.currency}): ${localPercentChange.toFixed(2)}%`,
+              `Exchange Rate Change: ${ratePercentChange.toFixed(2)}%`,
             ];
           },
           title: (tooltipItems: any) => {
